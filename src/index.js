@@ -4,50 +4,94 @@ function eval() {
 }
 
 function expressionCalculator(expr) {
-  if(checkValidBrackets(expr)) throw new Error("ExpressionError: Brackets must be paired")
-  if(divisionByZero(expr)) throw new Error("TypeError: Division by zero.")
+  if(expr.match(/\/0|\/ 0/)) throw new Error("TypeError: Division by zero.")
 
-  const parceExpr = expr.trim().replace(/\s|\(|\)/g, '').split(/([0-9]+\/[0-9]*)|([0-9]+\*[0-9]*)|(\+|\-)/g).filter(Boolean).map(itm => {
-    return Number.isInteger(+itm) || (itm == '+' || itm == '-' || itm == '/' || itm == '*') ? itm : itm.match(/\*|\/|\d*/g).filter(Boolean)
-  })
+  const eprArray = expr.match(/\d+|\+|\-|\*|\/|\(|\)/g);
 
-  return action(createArrChanc(parceExpr))
+  const RPN = createRPN(eprArray);
 
+  class Stack {
+    constructor() {
+      this.stack = [];
+      this.operators = {
+        "+": (a, b) => a + b,
+        "-": (a, b) => a - b,
+        "*": (a, b) => a * b,
+        "/": (a, b) => a / b,
+        "^": (a, b) => a ** b
+      };
+    }
+    add(operand) {
+      this.stack.push(operand);
+    }
+    calculate(operator) {
+      const res = this.operators[operator](
+        this.stack[this.stack.length - 2],
+        this.stack[this.stack.length - 1]
+      );
+      this.stack.splice(-2, 2, res);
+    }
+    getResult() {
+      return this.stack[0];
+    }
+  }
 
-  function createArrChanc(arr) {
-    if(arr.length === 3) {
-      return arr
-    }else {
-      return createArrChanc([arr.splice(0,3), ...arr])
+  const c = new Stack();
+
+  RPN.forEach((itm) => {
+    if (Number.isInteger(+itm)) c.add(+itm);
+    else c.calculate(itm);
+  });
+
+  
+  return c.getResult();
+
+  function createRPN(arr) {
+    const output = [];
+    const operators = [];
+
+    arr.forEach((itm) => {
+      if (Number.isInteger(+itm)) {
+        output.push(itm);
+      } else if (itm === "(") {
+        operators.push(itm);
+      } else if (itm === ")" && operators.includes('(')) {
+        for (let i = operators.length - 1; ; i--) {
+          if (operators[i] === "(") {
+            operators.pop();
+            break;
+          } else {
+            const op = operators.pop();
+            output.push(op);
+          }
+        }
+      } else if(itm == '+' || itm == '-' || itm == '*' || itm == '/'){
+        while(true){
+          if (priority(operators[operators.length - 1], itm)) {
+            const op = operators.pop();
+            output.push(op);
+          } else {
+            operators.push(itm);
+            break;
+          }
+        }
+      }else{
+        throw new Error('ExpressionError: Brackets must be paired')
       }
-    }
+    });
+    if(operators.includes('(')) throw new Error('ExpressionError: Brackets must be paired')
+    return output.concat(operators.reverse());
+  }
 
-    function action([operand_1, operator, operand_2]) {
-      const operatorTable = {
-        "/": +operand_1 / +operand_2,
-        "*": +operand_1 * +operand_2,
-        "+": +operand_1 + +operand_2,
-        "-": +operand_1 - +operand_2,
-      }
-      if(Array.isArray(operand_1) && Array.isArray(operand_2)){
-        return action([action(operand_1), operator, action(operand_2)])
-      }else if(Array.isArray(operand_1)) {
-         return action([action(operand_1), operator, operand_2])
-       }else if(Array.isArray(operand_2)) {
-        return action([operand_1, operator, action(operand_2)])
-       }else {
-        return operatorTable[operator]
-       }
-    }
-    
-    //VALIDATION
-    function checkValidBrackets(str) {
-      
-      return ~str.search(/\(/) && ~str.search(/\)/) ? str.match(/\(/g).length === str.match(/\)/g).length : ~str.search(/\)|\(/)
-    }
-    function divisionByZero(str) {
-      return str.match(/\/0|\/ 0/)
-    }
+  function priority(curOperator, newOperator) {
+    const priorCode = {
+      "*": 2,
+      "/": 2,
+      "+": 1,
+      "-": 1
+    };
+    return priorCode[curOperator] >= priorCode[newOperator];
+  }
 }
 
 module.exports = {
